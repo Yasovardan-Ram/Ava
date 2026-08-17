@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections import OrderedDict
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
@@ -11,6 +12,7 @@ load_dotenv()
 
 NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 NIM_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
+CACHE_MAX_SIZE = 128
 
 COMPLAINT_SCHEMA = {
     "type": "object",
@@ -62,7 +64,7 @@ SYSTEM_PROMPT = (
     "Return ONLY valid JSON matching the schema. No commentary."
 )
 
-_cache: dict[str, dict] = {}
+_cache: OrderedDict[str, dict] = OrderedDict()
 
 
 @dataclass
@@ -93,6 +95,13 @@ def _clamp(val: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, val))
 
 
+def _safe_float(val: float | int | str | None, default: float = 0.0) -> float:
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
 def _validate_and_clamp(raw: dict) -> dict:
     raw.setdefault("zone", "Room A")
     raw.setdefault("temperature_offset", 0.0)
@@ -103,12 +112,12 @@ def _validate_and_clamp(raw: dict) -> dict:
     raw.setdefault("confidence", 0.5)
     raw.setdefault("raw_text", "")
 
-    raw["temperature_offset"] = _clamp(float(raw["temperature_offset"]), -5.0, 5.0)
-    raw["humidity_delta"] = _clamp(float(raw["humidity_delta"]), -20.0, 20.0)
-    raw["air_velocity"] = _clamp(float(raw["air_velocity"]), 0.0, 1.0)
-    raw["metabolic_rate"] = _clamp(float(raw["metabolic_rate"]), 0.7, 6.3)
-    raw["clothing_insulation"] = _clamp(float(raw["clothing_insulation"]), 0.3, 1.5)
-    raw["confidence"] = _clamp(float(raw["confidence"]), 0.0, 1.0)
+    raw["temperature_offset"] = _clamp(_safe_float(raw["temperature_offset"], 0.0), -5.0, 5.0)
+    raw["humidity_delta"] = _clamp(_safe_float(raw["humidity_delta"], 0.0), -20.0, 20.0)
+    raw["air_velocity"] = _clamp(_safe_float(raw["air_velocity"], 0.15), 0.0, 1.0)
+    raw["metabolic_rate"] = _clamp(_safe_float(raw["metabolic_rate"], 1.2), 0.7, 6.3)
+    raw["clothing_insulation"] = _clamp(_safe_float(raw["clothing_insulation"], 0.5), 0.3, 1.5)
+    raw["confidence"] = _clamp(_safe_float(raw["confidence"], 0.5), 0.0, 1.0)
     raw["zone"] = str(raw["zone"])[:100]
 
     return raw
@@ -124,6 +133,7 @@ def extract_complaint(text: str) -> NLPResult:
         )
 
     if text in _cache:
+        _cache.move_to_end(text)
         d = _cache[text]
         return NLPResult(**d)
 
@@ -149,14 +159,25 @@ def extract_complaint(text: str) -> NLPResult:
         stream=False,
     )
 
+    if not response.choices or response.choices[0].message.content is None:
+        return NLPResult(
+            zone="Room A", temperature_offset=0, humidity_delta=0,
+            air_velocity=0.15, metabolic_rate=1.2, clothing_insulation=0.5,
+            confidence=0.0, raw_text=text,
+        )
+
     content = response.choices[0].message.content.strip()
     if content.startswith("```"):
         content = content.split("\n", 1)[1]
+        content = content.rstrip()
         if content.endswith("```"):
-            content = content[: -3].strip()
+            content = content[:-3].strip()
 
     raw = json.loads(content)
     validated = _validate_and_clamp(raw)
+
     _cache[text] = validated
+    while len(_cache) > CACHE_MAX_SIZE:
+        _cache.popitem(last=False)
 
     return NLPResult(**validated)
