@@ -28,7 +28,10 @@ function renderPMVGauge(container, pmv, ppd, tsv) {
 }
 
 function renderJsonDisplay(container, data) {
-    container.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+    const pre = document.createElement('pre');
+    pre.textContent = JSON.stringify(data, null, 2);
+    container.innerHTML = '';
+    container.appendChild(pre);
 }
 
 function animateStep(stepId, delay) {
@@ -116,7 +119,7 @@ async function loadHistory() {
                 responsive: true,
                 plugins: { legend: { position: 'bottom' } },
                 scales: {
-                    y: { beginAtZero: true },
+                    y: { suggestedMin: -2, suggestedMax: 2 },
                 },
             },
         });
