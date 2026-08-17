@@ -7,6 +7,7 @@ from scipy.optimize import Bounds, minimize
 
 from app.models import ZoneState
 from app.simulation.digital_twin import (
+    AIR_DENSITY,
     MAX_AIRFLOW,
     CP_AIR,
     COP,
@@ -63,12 +64,12 @@ def _compute_pmv(room_temp: float, air_speed: float,
 def _evaluate(state: ZoneState, supply_temp: float, fan_speed: float,
               target_pmv: float = 0.0) -> tuple[float, float, float]:
     fan_power = FAN_POWER_MAX * (fan_speed ** 3)
-    cooling_delta = max(state.temperature - supply_temp, 0.1)
-    compressor_power = (fan_speed * MAX_AIRFLOW * CP_AIR * cooling_delta) / COP
+    cooling_delta = max(state.temperature - supply_temp, 0.0)
+    compressor_power = (fan_speed * MAX_AIRFLOW * AIR_DENSITY * CP_AIR * cooling_delta) / COP
     energy = fan_power + compressor_power
 
     air_flow = fan_speed * MAX_AIRFLOW
-    cooling_power = air_flow * CP_AIR * (state.temperature - supply_temp)
+    cooling_power = air_flow * AIR_DENSITY * CP_AIR * (state.temperature - supply_temp)
     dT = (cooling_power - HEAT_GAIN) / ZONE_THERMAL_MASS * 300.0
     room_temp = max(18.0, min(30.0, state.temperature - dT))
     air_speed = 0.1 + fan_speed * 0.4
@@ -84,8 +85,8 @@ def _is_feasible(pmv: float, target_pmv: float) -> bool:
 def optimize_hvac(state: ZoneState, target_pmv: float = 0.0) -> OptimizationResult:
     def energy_cost(x: np.ndarray) -> float:
         fan_power = FAN_POWER_MAX * (x[1] ** 3)
-        cooling_delta = max(state.temperature - x[0], 0.1)
-        compressor_power = (x[1] * MAX_AIRFLOW * CP_AIR * cooling_delta) / COP
+        cooling_delta = max(state.temperature - x[0], 0.0)
+        compressor_power = (x[1] * MAX_AIRFLOW * AIR_DENSITY * CP_AIR * cooling_delta) / COP
         return fan_power + compressor_power
 
     def pmv_constraint(x: np.ndarray) -> float:
@@ -96,10 +97,10 @@ def optimize_hvac(state: ZoneState, target_pmv: float = 0.0) -> OptimizationResu
     bounds = Bounds(lb=[SUPPLY_TEMP_MIN, FAN_SPEED_MIN], ub=[SUPPLY_TEMP_MAX, FAN_SPEED_MAX_OPT])
     constraints = [{"type": "ineq", "fun": pmv_constraint}]
 
+    best_energy_init, best_pmv_init, _ = _evaluate(state, x0[0], x0[1], target_pmv)
     best_x = x0.copy()
-    best_energy = energy_cost(x0)
-    best_pmv = _compute_pmv(state.temperature, 0.1 + x0[1] * 0.4,
-                            state.humidity, state.metabolic_rate, state.clothing_insulation)
+    best_energy = best_energy_init
+    best_pmv = best_pmv_init
     best_feasible = _is_feasible(best_pmv, target_pmv)
 
     try:

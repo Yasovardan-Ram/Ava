@@ -8,6 +8,7 @@ from pythermalcomfort.utilities import v_relative
 from app.models import ZoneState
 
 CP_AIR = 1005.0
+AIR_DENSITY = 1.2
 MAX_AIRFLOW = 1.0
 ZONE_THERMAL_MASS = 40000.0
 HEAT_GAIN = 200.0
@@ -42,8 +43,8 @@ def assess_comfort(state: ZoneState) -> ComfortResult:
 
 def calculate_energy_cost(supply_temp: float, fan_speed: float, room_temp: float) -> float:
     fan_power = FAN_POWER_MAX * (fan_speed ** 3)
-    cooling_delta = max(room_temp - supply_temp, 0.1)
-    compressor_power = (fan_speed * MAX_AIRFLOW * CP_AIR * cooling_delta) / COP
+    cooling_delta = max(room_temp - supply_temp, 0.0)
+    compressor_power = (fan_speed * MAX_AIRFLOW * AIR_DENSITY * CP_AIR * cooling_delta) / COP
     return fan_power + compressor_power
 
 
@@ -53,7 +54,7 @@ def apply_hvac_action(
     fan_speed: float,
 ) -> tuple[ZoneState, float]:
     air_flow = fan_speed * MAX_AIRFLOW
-    cooling_power = air_flow * CP_AIR * (state.temperature - supply_temp)
+    cooling_power = air_flow * AIR_DENSITY * CP_AIR * (state.temperature - supply_temp)
     dT = (cooling_power - HEAT_GAIN) / ZONE_THERMAL_MASS * DT
     new_temp = state.temperature - dT
     new_temp = max(18.0, min(30.0, new_temp))
@@ -61,7 +62,7 @@ def apply_hvac_action(
     new_state = ZoneState(
         temperature=round(new_temp, 2),
         humidity=state.humidity,
-        air_velocity=state.air_velocity,
+        air_velocity=round(0.1 + fan_speed * 0.4, 4),
         mean_radiant_temp=round(new_temp, 2),
         metabolic_rate=state.metabolic_rate,
         clothing_insulation=state.clothing_insulation,
