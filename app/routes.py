@@ -13,6 +13,8 @@ from app.simulation.digital_twin import DigitalTwin, assess_comfort
 
 main = Blueprint("main", __name__)
 
+MAX_COMPLAINT_LENGTH = 1000
+
 
 @main.route("/")
 def index():
@@ -21,10 +23,15 @@ def index():
 
 @main.route("/api/complaint", methods=["POST"])
 def handle_complaint():
-    data = request.get_json(force=True)
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid JSON"}), 400
+
     text = data.get("complaint", "").strip()
     if not text:
         return jsonify({"error": "No complaint text provided"}), 400
+    if len(text) > MAX_COMPLAINT_LENGTH:
+        return jsonify({"error": f"Complaint too long (max {MAX_COMPLAINT_LENGTH} characters)"}), 400
 
     nlp_result = extract_complaint(text)
 
@@ -36,18 +43,12 @@ def handle_complaint():
 
     state = load_state()
 
+    pmv_before = assess_comfort(state)
+
     if nlp_result.zone and nlp_result.zone.lower() not in ("unknown", "room a", ""):
         state.zone_name = nlp_result.zone
-    state.temperature += nlp_result.temperature_offset * 0.3
-    state.humidity += nlp_result.humidity_delta * 0.3
-    state.air_velocity = nlp_result.air_velocity
     state.metabolic_rate = nlp_result.metabolic_rate
     state.clothing_insulation = nlp_result.clothing_insulation
-
-    state.temperature = max(18.0, min(30.0, state.temperature))
-    state.humidity = max(20.0, min(80.0, state.humidity))
-
-    pmv_before = assess_comfort(state)
 
     opt_result = optimize_hvac(state)
 
