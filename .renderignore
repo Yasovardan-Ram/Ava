@@ -1,9 +1,0 @@
-.venv/
-__pycache__/
-*.pyc
-.git/
-.env
-*.zip
-ava_runtime_test.log
-ava_server.log
-ava_crash.log
