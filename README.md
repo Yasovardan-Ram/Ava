@@ -924,3 +924,8 @@ AVA combines **AI reasoning, building simulation, thermal comfort modelling, and
 ```
 
 **AVA is an AI-powered HVAC control system demonstrated through a physics-based Building Digital Twin — turning natural-language building feedback into controlled, measurable, and verifiable HVAC actions.**
+<img width="556" height="523" alt="image" src="https://github.com/user-attachments/assets/91f2b83d-9a80-4b9d-aceb-8b6b9ec9fb4b" /> 
+scan it to visit the website 
+OR
+https://ava-pi-drab.vercel.app/
+
