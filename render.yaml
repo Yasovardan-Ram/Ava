@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: ava-hvac-digital-twin
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 main:app
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.2
+      - key: FLASK_DEBUG
+        value: "false"
+      - key: AVA_DB_FILE
+        value: /tmp/ava_runtime.sqlite3
+      - key: SECRET_KEY
+        generateValue: true

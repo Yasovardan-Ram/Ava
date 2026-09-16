@@ -1,0 +1,14 @@
+[project]
+name = "ava"
+version = "0.1.0"
+description = "NLP-based HVAC Digital Twin for comfort and energy optimization"
+readme = "README.md"
+requires-python = ">=3.12.2"
+dependencies = [
+    "flask>=3.1.3",
+    "numpy>=2.2.6",
+    "openai>=3.1.0",
+    "pythermalcomfort>=4.4.0",
+    "python-dotenv>=1.2.3",
+    "gunicorn>=23.0.0",
+]
